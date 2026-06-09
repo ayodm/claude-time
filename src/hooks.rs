@@ -100,6 +100,12 @@ fn populate_from_payload(record: &mut SessionRecord, payload: &Value) {
             record.model = Some(m.to_string());
         }
     }
+    // Capture unknown fields so future Claude Code payload keys land
+    // somewhere without requiring a schema migration to surface them.
+    let extras = crate::env_capture::payload_extras(payload);
+    if !extras.is_empty() {
+        record.env_extras = extras;
+    }
 }
 
 fn populate_session_start(record: &mut SessionRecord) {
@@ -112,6 +118,16 @@ fn populate_session_start(record: &mut SessionRecord) {
         }
         if record.branch.is_none() {
             record.branch = Some(branch);
+        }
+    }
+    // Snapshot the prompt environment (skills, CLAUDE.md, hooks, plugins).
+    // Wrapped: any panic in env_capture is swallowed, never blocks SessionStart.
+    if !record.cwd.is_empty() {
+        let cwd = record.cwd.clone();
+        let env = std::panic::catch_unwind(|| crate::env_capture::capture(Path::new(&cwd)));
+        match env {
+            Ok(env) => crate::env_capture::apply(record, env),
+            Err(_) => eprintln!("[claude-time] env_capture panicked; skipping driver fields"),
         }
     }
 }

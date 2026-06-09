@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 /// One Claude Code session captured by claude-time.
@@ -65,6 +66,40 @@ pub struct SessionRecord {
     pub files_changed: u32,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub file_diffs: BTreeMap<String, FileDiff>,
+
+    // -- v0.2.0 driver fields. Captured at SessionStart by env_capture.rs.
+    //    Defaults keep v0.1.x records parseable; the correlation layer in
+    //    Phase 2 filters groups with n < 3 so empty fields don't pollute.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_skills: Vec<SkillRef>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub claude_md_files: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub active_hook_events: BTreeMap<String, u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub enabled_plugins: Vec<String>,
+    /// Unknown SessionStart payload keys (e.g. future plan_mode /
+    /// permission_mode fields). Captured forward-compatibly without a
+    /// schema change required to surface them.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env_extras: BTreeMap<String, Value>,
+}
+
+/// Identity + content-hash of one skill that was available at SessionStart.
+/// Content hash lets the correlation layer detect rule edits across sessions.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SkillRef {
+    pub name: String,
+    pub content_hash: String,
+    pub source: SkillSource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillSource {
+    User,
+    Project,
+    Plugin(String),
 }
 
 fn is_zero_u32(v: &u32) -> bool {

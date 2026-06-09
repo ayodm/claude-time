@@ -145,7 +145,10 @@ fn install_preserves_unrelated_user_hooks() {
     let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     // User's hook intact, ours gone.
     assert_eq!(v["hooks"]["UserPromptSubmit"][0]["command"], "my-tool");
-    assert!(v["hooks"]["SessionStart"].is_null() || v["hooks"]["SessionStart"].as_array().unwrap().is_empty());
+    assert!(
+        v["hooks"]["SessionStart"].is_null()
+            || v["hooks"]["SessionStart"].as_array().unwrap().is_empty()
+    );
 }
 
 #[test]

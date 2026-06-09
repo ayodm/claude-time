@@ -12,10 +12,10 @@
 //! Run with `cargo test --test scoring_accuracy -- --nocapture` to see the
 //! computed-vs-expected values inline.
 
-use claude_time::git_history::{score, score_per_file, pinpoint_waste};
+use claude_time::git_history::{pinpoint_waste, score, score_per_file};
 use claude_time::model::{
-    classify, FileDiff, PinpointSeverity, Quadrant, RetentionOutcome,
-    SessionRecord, WastePinpoint, COST_HIGH_USD, RETENTION_HIGH,
+    classify, FileDiff, PinpointSeverity, Quadrant, RetentionOutcome, SessionRecord, WastePinpoint,
+    COST_HIGH_USD, RETENTION_HIGH,
 };
 use git2::{Oid, Repository, Signature};
 use std::collections::BTreeMap;
@@ -83,9 +83,7 @@ impl Repo {
     /// Reset HEAD to a commit, dropping everything after it (simulates rebase/squash).
     fn reset_hard(&self, oid: Oid) {
         let obj = self.repo.find_object(oid, None).unwrap();
-        self.repo
-            .reset(&obj, git2::ResetType::Hard, None)
-            .unwrap();
+        self.repo.reset(&obj, git2::ResetType::Hard, None).unwrap();
     }
 }
 
@@ -130,7 +128,13 @@ fn partial_retention_when_some_lines_later_replaced() {
 
     // Later commit: replace lines 1, 2, 3 with new text. Lines 4-10 untouched.
     let later: String = (1..=10)
-        .map(|i| if i <= 3 { format!("rewritten{i}\n") } else { format!("line{i}\n") })
+        .map(|i| {
+            if i <= 3 {
+                format!("rewritten{i}\n")
+            } else {
+                format!("line{i}\n")
+            }
+        })
         .collect();
     repo.commit(&[("new.txt", &later)], "later edit");
 
@@ -181,7 +185,13 @@ fn per_file_breakdown_matches_aggregate_when_recombined() {
 
     // Rewrite half of file B (5 lines).
     let b_partial: String = (1..=10)
-        .map(|i| if i <= 5 { format!("Z{i}\n") } else { format!("B{i}\n") })
+        .map(|i| {
+            if i <= 5 {
+                format!("Z{i}\n")
+            } else {
+                format!("B{i}\n")
+            }
+        })
         .collect();
     repo.commit(&[("b.txt", &b_partial)], "partial B");
 
@@ -209,7 +219,10 @@ fn per_file_breakdown_matches_aggregate_when_recombined() {
         "aggregate {aggregate} != reconstructed {reconstructed}"
     );
     // And sanity: 10 fully kept + 5 of 10 kept = 15/20 = 75%.
-    assert!(approx(aggregate, 0.75, 1e-6), "expected 0.75, got {aggregate}");
+    assert!(
+        approx(aggregate, 0.75, 1e-6),
+        "expected 0.75, got {aggregate}"
+    );
 }
 
 #[test]
@@ -298,7 +311,11 @@ fn quadrant_at_retention_boundary_is_kept() {
 
     // At exactly 0.5 retention, $0.50 cost — kept + cheap = QuickWin.
     let q = classify(Some(RetentionOutcome::Scored(0.5)), 0.5);
-    assert_eq!(q, Quadrant::QuickWin, "at retention=0.5, cost=0.5 -> QuickWin");
+    assert_eq!(
+        q,
+        Quadrant::QuickWin,
+        "at retention=0.5, cost=0.5 -> QuickWin"
+    );
 
     // At 0.4999 retention, $0.50 cost — lost + cheap = CheapWaste.
     let q = classify(Some(RetentionOutcome::Scored(0.4999)), 0.5);
@@ -315,8 +332,14 @@ fn quadrant_at_retention_boundary_is_kept() {
 
 #[test]
 fn quadrant_non_scored_outcomes() {
-    assert_eq!(classify(Some(RetentionOutcome::NonGit), 0.5), Quadrant::Unmeasurable);
-    assert_eq!(classify(Some(RetentionOutcome::Rebased), 0.5), Quadrant::Rebased);
+    assert_eq!(
+        classify(Some(RetentionOutcome::NonGit), 0.5),
+        Quadrant::Unmeasurable
+    );
+    assert_eq!(
+        classify(Some(RetentionOutcome::Rebased), 0.5),
+        Quadrant::Rebased
+    );
     assert_eq!(classify(None, 0.5), Quadrant::Pending);
     // NoChanges falls back to Pending in classify — it's only kept distinct
     // in the retention outcome itself.
@@ -410,9 +433,16 @@ fn pinpoint_waste_uses_per_file_retention_not_aggregate() {
         "a.txt has full retention — no pinpoint expected"
     );
     // b.txt SHOULD pinpoint as SEVERE (5 edits, 0% retention).
-    let b = pinpoints.iter().find(|p| p.file == "b.txt").expect("b.txt should pinpoint");
+    let b = pinpoints
+        .iter()
+        .find(|p| p.file == "b.txt")
+        .expect("b.txt should pinpoint");
     assert_eq!(b.severity, PinpointSeverity::Severe);
-    assert!(approx(b.retention, 0.0, 1e-6), "expected 0% retention for b, got {}", b.retention);
+    assert!(
+        approx(b.retention, 0.0, 1e-6),
+        "expected 0% retention for b, got {}",
+        b.retention
+    );
 }
 
 #[test]
@@ -427,16 +457,16 @@ fn pinpoint_waste_sorts_by_waste_score_descending() {
     let content_b: String = (1..=10).map(|i| format!("B{i}\n")).collect();
     let content_c: String = (1..=10).map(|i| format!("C{i}\n")).collect();
     let after = repo.commit(
-        &[("a.txt", &content_a), ("b.txt", &content_b), ("c.txt", &content_c)],
+        &[
+            ("a.txt", &content_a),
+            ("b.txt", &content_b),
+            ("c.txt", &content_c),
+        ],
         "session",
     );
     let dead: String = (1..=10).map(|i| format!("dead{i}\n")).collect();
     repo.commit(
-        &[
-            ("a.txt", &dead),
-            ("b.txt", &dead),
-            ("c.txt", &dead),
-        ],
+        &[("a.txt", &dead), ("b.txt", &dead), ("c.txt", &dead)],
         "kill all",
     );
 
@@ -448,8 +478,8 @@ fn pinpoint_waste_sorts_by_waste_score_descending() {
     );
     // Distinct edit counts → distinct severities & scores.
     s.per_file_edits.insert("a.txt".into(), 10); // SEVERE (high edits)
-    s.per_file_edits.insert("b.txt".into(), 5);  // SEVERE (moderate edits)
-    s.per_file_edits.insert("c.txt".into(), 1);  // LOST (single edit)
+    s.per_file_edits.insert("b.txt".into(), 5); // SEVERE (moderate edits)
+    s.per_file_edits.insert("c.txt".into(), 1); // LOST (single edit)
 
     let pinpoints = pinpoint_waste(&s).unwrap();
     eprintln!("ranked pinpoints: {pinpoints:#?}");

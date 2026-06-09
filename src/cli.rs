@@ -96,14 +96,20 @@ pub fn run() -> Result<()> {
             if markdown {
                 return crate::report::run(&since, retention_window, by.as_deref());
             }
-            run_html_report(&since, retention_window, by.as_deref(), out, stdout, no_open)
+            run_html_report(
+                &since,
+                retention_window,
+                by.as_deref(),
+                out,
+                stdout,
+                no_open,
+            )
         }
         Command::Serve { port } => crate::serve::run(port),
         Command::Uninstall => crate::install::uninstall(),
         Command::Archive => {
             let cfg = crate::config::load()?;
-            let cutoff =
-                crate::storage::default_archive_cutoff(cfg.report.retention_window_days);
+            let cutoff = crate::storage::default_archive_cutoff(cfg.report.retention_window_days);
             let n = crate::storage::archive_older_than(cutoff)?;
             println!(
                 "Archived {n} session(s) older than {} day(s).",

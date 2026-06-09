@@ -108,10 +108,7 @@ fn ingest_entry(
                             .and_then(|p| p.as_str())
                         {
                             files_set.insert(path.to_string());
-                            *stats
-                                .per_file_edits
-                                .entry(path.to_string())
-                                .or_default() += 1;
+                            *stats.per_file_edits.entry(path.to_string()).or_default() += 1;
                         }
                     }
                 }

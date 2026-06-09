@@ -104,11 +104,7 @@ pub fn render(sessions: &[SessionRecord], cfg: &Config, by: Option<&str>) -> Str
             }
         })
         .collect();
-    scored.sort_by(|a, b| {
-        b.session
-            .started_at
-            .cmp(&a.session.started_at)
-    });
+    scored.sort_by(|a, b| b.session.started_at.cmp(&a.session.started_at));
 
     let mut out = String::new();
     out.push_str("# claude-time report\n\n");

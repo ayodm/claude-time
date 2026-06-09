@@ -13,7 +13,7 @@ use crate::model::{SkillRef, SkillSource};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Maximum directory levels walked upward from cwd looking for CLAUDE.md.
 /// Caps the worst-case I/O on deep filesystem trees.
@@ -36,7 +36,13 @@ pub struct CapturedEnv {
 /// Snapshot the environment for a session whose cwd is `cwd`. Never errors;
 /// any failure is logged to stderr and the corresponding field stays empty.
 pub fn capture(cwd: &Path) -> CapturedEnv {
-    let claude_dir = crate::paths::claude_config_dir().ok();
+    capture_with_claude_dir(cwd, crate::paths::claude_config_dir().ok())
+}
+
+/// Same as [`capture`] but with an explicit `claude_dir`, so tests can
+/// point at a synthetic config without mutating `CLAUDE_CONFIG_DIR`
+/// (which races against other env-var-mutating tests).
+pub fn capture_with_claude_dir(cwd: &Path, claude_dir: Option<PathBuf>) -> CapturedEnv {
     let settings_value = claude_dir
         .as_ref()
         .and_then(|d| read_settings_json(&d.join("settings.json")));
@@ -110,7 +116,9 @@ fn count_non_ours_hooks(settings: &Value) -> BTreeMap<String, u32> {
         return out;
     };
     for (event, entries) in hooks {
-        let Some(arr) = entries.as_array() else { continue };
+        let Some(arr) = entries.as_array() else {
+            continue;
+        };
         let mut count = 0u32;
         for entry in arr {
             // Two valid shapes: flat `{type, command}` (v0.1.x legacy) and
@@ -147,10 +155,7 @@ fn iter_commands_in_entry(entry: &Value) -> Vec<String> {
 
 fn enabled_plugins_from(settings: &Value) -> Vec<String> {
     let mut out = Vec::new();
-    let Some(obj) = settings
-        .get("enabledPlugins")
-        .and_then(|v| v.as_object())
-    else {
+    let Some(obj) = settings.get("enabledPlugins").and_then(|v| v.as_object()) else {
         return out;
     };
     for (k, v) in obj {
@@ -165,7 +170,9 @@ fn enabled_plugins_from(settings: &Value) -> Vec<String> {
 // ---------- skills ----------
 
 fn collect_skills_in(dir: &Path, source: SkillSource, out: &mut Vec<SkillRef>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_dir() {
@@ -195,10 +202,14 @@ fn collect_plugin_skills(claude_dir: &Path, enabled: &[String], out: &mut Vec<Sk
     // Plugin enable keys look like "plugin@marketplace". Disabled plugins
     // are not counted as "active skills" even if their files exist on disk.
     let marketplaces_dir = claude_dir.join("plugins").join("marketplaces");
-    let Ok(mp_entries) = fs::read_dir(&marketplaces_dir) else { return };
+    let Ok(mp_entries) = fs::read_dir(&marketplaces_dir) else {
+        return;
+    };
     for mp in mp_entries.flatten() {
         let marketplace = mp.file_name().to_string_lossy().to_string();
-        let Ok(plugins) = fs::read_dir(mp.path()) else { continue };
+        let Ok(plugins) = fs::read_dir(mp.path()) else {
+            continue;
+        };
         for plugin in plugins.flatten() {
             let plugin_name = plugin.file_name().to_string_lossy().to_string();
             let enable_key = format!("{plugin_name}@{marketplace}");
@@ -206,11 +217,7 @@ fn collect_plugin_skills(claude_dir: &Path, enabled: &[String], out: &mut Vec<Sk
                 continue;
             }
             let skills_dir = plugin.path().join("skills");
-            collect_skills_in(
-                &skills_dir,
-                SkillSource::Plugin(plugin_name.clone()),
-                out,
-            );
+            collect_skills_in(&skills_dir, SkillSource::Plugin(plugin_name.clone()), out);
         }
     }
 }
@@ -229,7 +236,8 @@ fn collect_claude_md_walking_up(cwd: &Path, out: &mut BTreeMap<String, String>) 
             out.insert(label, hash);
         }
         let dot_candidate = dir.join(".claude").join("CLAUDE.md");
-        if let Some((label, hash)) = read_and_hash(&dot_candidate, &dot_candidate.to_string_lossy()) {
+        if let Some((label, hash)) = read_and_hash(&dot_candidate, &dot_candidate.to_string_lossy())
+        {
             out.insert(label, hash);
         }
         // Stop walking once we hit the repo root — CLAUDE.md files above the
@@ -319,7 +327,11 @@ mod tests {
             }
         });
         let m = count_non_ours_hooks(&settings);
-        assert_eq!(m.get("SessionStart").copied(), Some(1), "only user-tool counts");
+        assert_eq!(
+            m.get("SessionStart").copied(),
+            Some(1),
+            "only user-tool counts"
+        );
         assert_eq!(m.get("PostToolUse").copied(), Some(1));
         // Event with zero non-ours commands shouldn't appear at all.
         let settings_only_ours = serde_json::json!({
@@ -386,15 +398,26 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let claude = tmp.path().to_path_buf();
         // Disabled plugin → its skill must not appear.
-        write(&claude, "plugins/marketplaces/mp1/disabled-plugin/skills/foo/SKILL.md", "x");
+        write(
+            &claude,
+            "plugins/marketplaces/mp1/disabled-plugin/skills/foo/SKILL.md",
+            "x",
+        );
         // Enabled plugin → its skill must appear.
-        write(&claude, "plugins/marketplaces/mp1/enabled-plugin/skills/bar/SKILL.md", "y");
+        write(
+            &claude,
+            "plugins/marketplaces/mp1/enabled-plugin/skills/bar/SKILL.md",
+            "y",
+        );
 
         let mut out = Vec::new();
         collect_plugin_skills(&claude, &["enabled-plugin@mp1".to_string()], &mut out);
         assert_eq!(out.len(), 1, "got {out:?}");
         assert_eq!(out[0].name, "bar");
-        assert_eq!(out[0].source, SkillSource::Plugin("enabled-plugin".to_string()));
+        assert_eq!(
+            out[0].source,
+            SkillSource::Plugin("enabled-plugin".to_string())
+        );
     }
 
     #[test]
@@ -446,7 +469,10 @@ mod tests {
         let extras = payload_extras(&payload);
         assert_eq!(extras.len(), 2);
         assert_eq!(extras.get("plan_mode"), Some(&serde_json::json!(true)));
-        assert_eq!(extras.get("permission_mode"), Some(&serde_json::json!("default")));
+        assert_eq!(
+            extras.get("permission_mode"),
+            Some(&serde_json::json!("default"))
+        );
     }
 
     #[test]
@@ -454,13 +480,11 @@ mod tests {
         // Hook is invoked from an arbitrary directory with no .claude/, no
         // settings.json, no CLAUDE.md. Must not error, must not panic.
         let tmp = TempDir::new().unwrap();
-        std::env::set_var("CLAUDE_CONFIG_DIR", tmp.path().join("non-existent"));
-        let env = capture(tmp.path());
+        let env = capture_with_claude_dir(tmp.path(), Some(tmp.path().join("non-existent")));
         assert!(env.active_skills.is_empty());
         assert!(env.claude_md_files.is_empty());
         assert!(env.active_hook_events.is_empty());
         assert!(env.enabled_plugins.is_empty());
-        std::env::remove_var("CLAUDE_CONFIG_DIR");
     }
 
     #[test]
@@ -471,7 +495,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let claude = tmp.path().join("dot-claude");
         write(&claude, "skills/refactor/SKILL.md", "refactor body");
-        write(&claude, "settings.json", r#"{
+        write(
+            &claude,
+            "settings.json",
+            r#"{
             "hooks": {
                 "SessionStart": [
                     { "hooks": [{ "type": "command", "command": "claude-time hook session-start" }] },
@@ -479,10 +506,19 @@ mod tests {
                 ]
             },
             "enabledPlugins": { "alpha@mp1": true, "beta@mp1": false }
-        }"#);
+        }"#,
+        );
         // Plugin marketplace skill: alpha is enabled, beta isn't.
-        write(&claude, "plugins/marketplaces/mp1/alpha/skills/alpha-skill/SKILL.md", "alpha body");
-        write(&claude, "plugins/marketplaces/mp1/beta/skills/beta-skill/SKILL.md", "beta body");
+        write(
+            &claude,
+            "plugins/marketplaces/mp1/alpha/skills/alpha-skill/SKILL.md",
+            "alpha body",
+        );
+        write(
+            &claude,
+            "plugins/marketplaces/mp1/beta/skills/beta-skill/SKILL.md",
+            "beta body",
+        );
         write(&claude, "CLAUDE.md", "user-global CLAUDE.md");
 
         // Project layout with a CLAUDE.md and a project-level skill.
@@ -491,9 +527,7 @@ mod tests {
         write(&repo, "CLAUDE.md", "project CLAUDE.md");
         write(&repo, ".claude/skills/proj-skill/SKILL.md", "proj skill");
 
-        std::env::set_var("CLAUDE_CONFIG_DIR", &claude);
-        let env = capture(&repo);
-        std::env::remove_var("CLAUDE_CONFIG_DIR");
+        let env = capture_with_claude_dir(&repo, Some(claude.clone()));
 
         // Skills: refactor (user) + alpha-skill (plugin, enabled) + proj-skill (project).
         // beta-skill is filtered out because beta@mp1 is disabled.
@@ -502,7 +536,11 @@ mod tests {
         sorted.sort();
         assert_eq!(
             sorted,
-            vec!["alpha-skill".to_string(), "proj-skill".to_string(), "refactor".to_string()],
+            vec![
+                "alpha-skill".to_string(),
+                "proj-skill".to_string(),
+                "refactor".to_string()
+            ],
             "got {names:?}"
         );
 
@@ -514,6 +552,11 @@ mod tests {
 
         // CLAUDE.md: user-global + project root. (We're invoked from repo
         // root itself so there's no deeper walk to do.)
-        assert_eq!(env.claude_md_files.len(), 2, "got {:?}", env.claude_md_files);
+        assert_eq!(
+            env.claude_md_files.len(),
+            2,
+            "got {:?}",
+            env.claude_md_files
+        );
     }
 }

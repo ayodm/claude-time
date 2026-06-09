@@ -35,7 +35,6 @@ fn realistic_multi_turn_session_aggregates_match_hand_compute() {
         }),
         // Tool result — NOT a turn
         json!({"message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "x"}]}}),
-
         // Turn 2
         json!({"message": {"role": "user", "content": "Make the change"}}),
         json!({
@@ -51,7 +50,6 @@ fn realistic_multi_turn_session_aggregates_match_hand_compute() {
             "costUSD": 0.030
         }),
         json!({"message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "y"}]}}),
-
         // Turn 3 — also writes a new file
         json!({"message": {"role": "user", "content": "Now add bar.rs"}}),
         json!({
@@ -88,7 +86,11 @@ fn realistic_multi_turn_session_aggregates_match_hand_compute() {
     assert_eq!(s.output_tokens, 350);
     assert_eq!(s.cache_read_tokens, 1500);
     assert_eq!(s.cache_creation_tokens, 100);
-    assert!((s.total_cost_usd - 0.065).abs() < 1e-9, "got {}", s.total_cost_usd);
+    assert!(
+        (s.total_cost_usd - 0.065).abs() < 1e-9,
+        "got {}",
+        s.total_cost_usd
+    );
 }
 
 #[test]
@@ -107,17 +109,15 @@ fn user_message_with_string_content_still_counts_as_turn() {
 fn tool_use_without_name_does_not_crash_or_count() {
     // Defensive: a tool_use block missing the `name` field shouldn't crash
     // the parser and shouldn't increment any tool_calls bucket.
-    let f = jsonl(&[
-        json!({
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {"type": "tool_use", "input": {"file_path": "/a"}},  // no name
-                    {"type": "tool_use", "name": "Edit", "input": {"file_path": "/b"}}
-                ]
-            }
-        }),
-    ]);
+    let f = jsonl(&[json!({
+        "message": {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "input": {"file_path": "/a"}},  // no name
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/b"}}
+            ]
+        }
+    })]);
     let s = parse(f.path()).unwrap();
     assert_eq!(s.tool_calls.len(), 1);
     assert_eq!(s.tool_calls.get("Edit").copied(), Some(1));
@@ -132,18 +132,24 @@ fn cost_as_integer_is_accepted() {
         json!({"cost_usd": 2, "message": {"role": "assistant"}}),
     ]);
     let s = parse(f.path()).unwrap();
-    assert!((s.total_cost_usd - 3.0).abs() < 1e-9, "got {}", s.total_cost_usd);
+    assert!(
+        (s.total_cost_usd - 3.0).abs() < 1e-9,
+        "got {}",
+        s.total_cost_usd
+    );
 }
 
 #[test]
 fn both_cost_field_names_in_same_entry_costusd_wins() {
     // The parser uses `.or_else()` — costUSD wins; cost_usd is fallback.
     // Document this so a future PR doesn't accidentally double-count.
-    let f = jsonl(&[
-        json!({"costUSD": 0.10, "cost_usd": 99.99, "message": {"role": "assistant"}}),
-    ]);
+    let f = jsonl(&[json!({"costUSD": 0.10, "cost_usd": 99.99, "message": {"role": "assistant"}})]);
     let s = parse(f.path()).unwrap();
-    assert!((s.total_cost_usd - 0.10).abs() < 1e-9, "costUSD wins; got {}", s.total_cost_usd);
+    assert!(
+        (s.total_cost_usd - 0.10).abs() < 1e-9,
+        "costUSD wins; got {}",
+        s.total_cost_usd
+    );
 }
 
 #[test]
@@ -152,27 +158,25 @@ fn multiedit_only_captures_top_level_file_path_field() {
     // `edits` array. The parser only looks at `input.file_path`, so a
     // single MultiEdit call counts as ONE edit even if it contains many
     // sub-edits. Document so the pinpoint logic isn't misread.
-    let f = jsonl(&[
-        json!({
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "MultiEdit",
-                        "input": {
-                            "file_path": "/repo/big.rs",
-                            "edits": [
-                                {"old_string": "a", "new_string": "b"},
-                                {"old_string": "c", "new_string": "d"},
-                                {"old_string": "e", "new_string": "f"}
-                            ]
-                        }
+    let f = jsonl(&[json!({
+        "message": {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "MultiEdit",
+                    "input": {
+                        "file_path": "/repo/big.rs",
+                        "edits": [
+                            {"old_string": "a", "new_string": "b"},
+                            {"old_string": "c", "new_string": "d"},
+                            {"old_string": "e", "new_string": "f"}
+                        ]
                     }
-                ]
-            }
-        }),
-    ]);
+                }
+            ]
+        }
+    })]);
     let s = parse(f.path()).unwrap();
     assert_eq!(s.tool_calls.get("MultiEdit").copied(), Some(1));
     assert_eq!(
@@ -200,11 +204,7 @@ fn very_large_transcript_parses_in_reasonable_time() {
     // and the parser handles realistic session sizes.
     let mut f = NamedTempFile::new().unwrap();
     for _ in 0..10_000 {
-        writeln!(
-            f,
-            r#"{{"message":{{"role":"user","content":[]}}}}"#
-        )
-        .unwrap();
+        writeln!(f, r#"{{"message":{{"role":"user","content":[]}}}}"#).unwrap();
     }
     let start = std::time::Instant::now();
     let s = parse(f.path()).unwrap();
@@ -217,20 +217,22 @@ fn very_large_transcript_parses_in_reasonable_time() {
 #[test]
 fn line_with_unicode_paths_preserves_them() {
     // Filenames with unicode and spaces must round-trip cleanly.
-    let f = jsonl(&[
-        json!({
-            "message": {
-                "role": "assistant",
-                "content": [
-                    {"type": "tool_use", "name": "Edit", "input": {"file_path": "/repo/日本語/ファイル名.rs"}},
-                    {"type": "tool_use", "name": "Write", "input": {"file_path": "/repo/path with spaces/file.txt"}}
-                ]
-            }
-        }),
-    ]);
+    let f = jsonl(&[json!({
+        "message": {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "name": "Edit", "input": {"file_path": "/repo/日本語/ファイル名.rs"}},
+                {"type": "tool_use", "name": "Write", "input": {"file_path": "/repo/path with spaces/file.txt"}}
+            ]
+        }
+    })]);
     let s = parse(f.path()).unwrap();
-    assert!(s.files_modified.contains(&"/repo/日本語/ファイル名.rs".to_string()));
-    assert!(s.files_modified.contains(&"/repo/path with spaces/file.txt".to_string()));
+    assert!(s
+        .files_modified
+        .contains(&"/repo/日本語/ファイル名.rs".to_string()));
+    assert!(s
+        .files_modified
+        .contains(&"/repo/path with spaces/file.txt".to_string()));
     assert_eq!(
         s.per_file_edits.get("/repo/日本語/ファイル名.rs").copied(),
         Some(1)

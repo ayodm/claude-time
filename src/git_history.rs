@@ -328,7 +328,12 @@ mod tests {
         oid
     }
 
-    fn mk_session(cwd: &Path, before: Oid, after: Oid, file_diffs: Vec<(&str, u32)>) -> SessionRecord {
+    fn mk_session(
+        cwd: &Path,
+        before: Oid,
+        after: Oid,
+        file_diffs: Vec<(&str, u32)>,
+    ) -> SessionRecord {
         let mut s = SessionRecord::default();
         s.session_id = "t1".into();
         s.cwd = cwd.to_string_lossy().into_owned();

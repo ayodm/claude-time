@@ -37,13 +37,8 @@ pub fn install() -> Result<()> {
         .with_context(|| format!("writing {}", settings_path.display()))?;
 
     match (added, migrated) {
-        (0, 0) => println!(
-            "claude-time hooks already installed; no changes to settings.json."
-        ),
-        (a, 0) => println!(
-            "Installed {a} hook entries in {}.",
-            settings_path.display()
-        ),
+        (0, 0) => println!("claude-time hooks already installed; no changes to settings.json."),
+        (a, 0) => println!("Installed {a} hook entries in {}.", settings_path.display()),
         (0, m) => println!(
             "Migrated {m} legacy hook entries to the current shape in {}.",
             settings_path.display()
@@ -60,7 +55,10 @@ pub fn install() -> Result<()> {
 pub fn uninstall() -> Result<()> {
     let settings_path = crate::paths::settings_json()?;
     if !settings_path.exists() {
-        println!("No settings.json at {}; nothing to do.", settings_path.display());
+        println!(
+            "No settings.json at {}; nothing to do.",
+            settings_path.display()
+        );
         return Ok(());
     }
     let mut root = read_or_default(&settings_path)?;
@@ -108,13 +106,12 @@ fn read_or_default(path: &std::path::Path) -> Result<Value> {
     if !path.exists() {
         return Ok(json!({}));
     }
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("reading {}", path.display()))?;
+    let raw = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     if raw.trim().is_empty() {
         return Ok(json!({}));
     }
-    let v: Value = serde_json::from_str(&raw)
-        .with_context(|| format!("parsing {}", path.display()))?;
+    let v: Value =
+        serde_json::from_str(&raw).with_context(|| format!("parsing {}", path.display()))?;
     Ok(v)
 }
 
@@ -133,9 +130,7 @@ fn apply_hooks(root: &mut Value) -> Result<(usize, usize)> {
     let mut added = 0usize;
     let mut migrated = 0usize;
     for (event, command) in HOOK_EVENTS {
-        let arr = hooks_obj
-            .entry(*event)
-            .or_insert(Value::Array(Vec::new()));
+        let arr = hooks_obj.entry(*event).or_insert(Value::Array(Vec::new()));
         let arr = match arr.as_array_mut() {
             Some(a) => a,
             None => anyhow::bail!("`hooks.{event}` is not an array"),
@@ -187,9 +182,15 @@ fn apply_hooks(root: &mut Value) -> Result<(usize, usize)> {
 ///   * top-level flat entries `{type, command}` written by v0.1.x
 ///   * wrapped entries `{hooks: [{type, command}]}` written by ≥v0.1.2
 fn remove_hooks(root: &mut Value) -> usize {
-    let Some(obj) = root.as_object_mut() else { return 0 };
-    let Some(hooks_entry) = obj.get_mut("hooks") else { return 0 };
-    let Some(hooks_obj) = hooks_entry.as_object_mut() else { return 0 };
+    let Some(obj) = root.as_object_mut() else {
+        return 0;
+    };
+    let Some(hooks_entry) = obj.get_mut("hooks") else {
+        return 0;
+    };
+    let Some(hooks_obj) = hooks_entry.as_object_mut() else {
+        return 0;
+    };
 
     let mut removed = 0usize;
     for (event, command) in HOOK_EVENTS {
@@ -200,10 +201,7 @@ fn remove_hooks(root: &mut Value) -> usize {
                 removed += before_flat - arr.len();
 
                 for item in arr.iter_mut() {
-                    if let Some(inner) = item
-                        .get_mut("hooks")
-                        .and_then(|h| h.as_array_mut())
-                    {
+                    if let Some(inner) = item.get_mut("hooks").and_then(|h| h.as_array_mut()) {
                         let before_inner = inner.len();
                         inner.retain(|e| !is_flat_match(e, command));
                         removed += before_inner - inner.len();
@@ -231,7 +229,9 @@ fn remove_hooks(root: &mut Value) -> usize {
 }
 
 fn count_our_hooks(root: &Value) -> usize {
-    let Some(hooks) = root.get("hooks").and_then(|h| h.as_object()) else { return 0 };
+    let Some(hooks) = root.get("hooks").and_then(|h| h.as_object()) else {
+        return 0;
+    };
     HOOK_EVENTS
         .iter()
         .filter(|(event, command)| {
@@ -239,9 +239,8 @@ fn count_our_hooks(root: &Value) -> usize {
                 .get(*event)
                 .and_then(|v| v.as_array())
                 .map(|arr| {
-                    arr.iter().any(|item| {
-                        is_flat_match(item, command) || is_wrapped_match(item, command)
-                    })
+                    arr.iter()
+                        .any(|item| is_flat_match(item, command) || is_wrapped_match(item, command))
                 })
                 .unwrap_or(false)
         })
@@ -337,7 +336,10 @@ mod tests {
             }
         });
         let (added, migrated) = apply_hooks(&mut root).unwrap();
-        assert_eq!(added, 0, "no new entries — both already present in flat shape");
+        assert_eq!(
+            added, 0,
+            "no new entries — both already present in flat shape"
+        );
         assert_eq!(migrated, 2, "both flat entries rewritten as wrapped");
 
         // Our SessionStart entry is now wrapped, and the user's entry survived.
@@ -346,9 +348,7 @@ mod tests {
         assert!(ss
             .iter()
             .any(|i| is_wrapped_match(i, "claude-time hook session-start")));
-        assert!(ss
-            .iter()
-            .any(|i| is_wrapped_match(i, "user-tool")));
+        assert!(ss.iter().any(|i| is_wrapped_match(i, "user-tool")));
         // No flat entry of ours remains.
         assert!(!ss
             .iter()

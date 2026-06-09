@@ -269,7 +269,10 @@ mod tests {
     #[test]
     fn parses_query_param() {
         assert_eq!(query_param("since=7d", "since"), Some("7d".into()));
-        assert_eq!(query_param("by=project&since=30d", "since"), Some("30d".into()));
+        assert_eq!(
+            query_param("by=project&since=30d", "since"),
+            Some("30d".into())
+        );
         assert_eq!(query_param("by=project", "since"), None);
     }
 

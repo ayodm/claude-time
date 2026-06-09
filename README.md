@@ -5,18 +5,22 @@
 [![crates.io downloads](https://img.shields.io/crates/d/claude-time.svg)](https://crates.io/crates/claude-time)
 [![license](https://img.shields.io/crates/l/claude-time.svg)](LICENSE)
 
-> **v0.2.0-rc.1 is a pre-release.** Adds environment capture (which
+> **v0.2.0-rc.2 is a pre-release.** Adds environment capture (which
 > skills, CLAUDE.md files, hooks, and plugins were active at
 > SessionStart) and a "Drivers" correlation view that groups sessions
 > by environment feature and shows retention/cost deltas vs the
-> all-sessions baseline. 113 tests cover the implementation, but
-> **the live behaviour has not been validated against a real Claude
-> Code session yet** — neither the v0.1.2 hook-shape migration nor the
-> new v0.2.0 driver capture. `cargo install claude-time` keeps you on
-> stable `0.1.2`; opt in to the pre-release explicitly:
+> all-sessions baseline. 107 unit tests + 16 simulated lifecycle
+> scenarios (every realistic SessionStart/SessionEnd flow plus
+> adversarial inputs: path-traversal session IDs, malformed
+> settings.json, mid-session CLAUDE.md rewrites, concurrent sessions
+> in different repos, XSS via stored fields) all pass. The remaining
+> unvalidated gap is **observing the hook fire from inside a real
+> Claude Code session** rather than from the synthetic harness; until
+> then the pre-release label stays. `cargo install claude-time` keeps
+> you on stable `0.1.2`; opt in explicitly:
 >
 > ```sh
-> cargo install claude-time --version 0.2.0-rc.1
+> cargo install claude-time --version 0.2.0-rc.2
 > ```
 
 Passive-only ROI tracker for Claude Code sessions.

@@ -1,6 +1,6 @@
 {
   "name": "claude-time",
-  "version": "0.2.0-rc.1",
+  "version": "0.2.0-rc.2",
   "description": "Passive ROI tracker — measures whether Claude Code is saving you time by substituting diff retention for the unknowable time-saved baseline.",
   "author": {
     "name": "Ayo Mosanya"

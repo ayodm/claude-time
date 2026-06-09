@@ -13,7 +13,7 @@ A passive ROI tracker for Claude Code itself. Measures whether Claude is
 days = value; a diff that was reverted or rewritten = waste.
 
 - **Repo:** https://github.com/ayodm/claude-time (public)
-- **Latest:** v0.2.0-rc.1 pre-release on `main`. v0.1.2 remains the
+- **Latest:** v0.2.0-rc.2 pre-release on `main`. v0.1.2 remains the
   stable on crates.io; `cargo install claude-time` keeps users on it.
 - **Stack:** Rust (single binary, no runtime deps for users)
 - **Distribution:** crates.io + GitHub Releases + Claude Code plugin marketplace + Homebrew tap (planned)
@@ -21,7 +21,7 @@ days = value; a diff that was reverted or rewritten = waste.
 - **Commit identity for this repo:** `Ayo M <ayodm@me.com>`. The gmail
   address must NOT appear in commits. Local git config is set; verify with
   `git config user.email`.
-- **Installed on this machine:** `~/.cargo/bin/claude-time` (v0.2.0-rc.1
+- **Installed on this machine:** `~/.cargo/bin/claude-time` (v0.2.0-rc.2
   built locally) with hooks active in `~/.claude/settings.json`. Backup
   of pre-install settings at `~/.claude/settings.json.before-claude-time.bak`.
 
@@ -58,10 +58,10 @@ days = value; a diff that was reverted or rewritten = waste.
   pipes HTML; `--markdown` keeps the legacy terminal-readable path;
   `--serve` starts the server.
 
-### v0.2.0-rc.1 — driver capture + correlation
+### v0.2.0-rc.2 — driver capture + correlation
 
 Pre-release. Stable line stays on v0.1.2; this is opt-in via
-`cargo install claude-time --version 0.2.0-rc.1`. Plan source-of-truth at
+`cargo install claude-time --version 0.2.0-rc.2`. Plan source-of-truth at
 `docs/v0.2.0-plan.md`; per-phase commits:
 
 - **Phase 0** (`eed3cbf`) — surface cache hit ratio + sessions-by-model
@@ -129,12 +129,12 @@ Earlier v0.1.1 coverage (still present):
 
 ```
 .
-├── Cargo.toml                              # v0.2.0-rc.1; metadata for crates.io
+├── Cargo.toml                              # v0.2.0-rc.2; metadata for crates.io
 ├── README.md                               # install routes + adoption section
 ├── LICENSE                                 # MIT
 ├── installer.sh                            # curl-shell installer
 ├── .claude-plugin/
-│   ├── plugin.json                         # plugin manifest (v0.2.0-rc.1)
+│   ├── plugin.json                         # plugin manifest (v0.2.0-rc.2)
 │   └── marketplace.json                    # this repo IS its own marketplace
 ├── hooks/
 │   └── hooks.json                          # SessionStart + SessionEnd declarations
@@ -220,8 +220,8 @@ ls ~/.claude/claude-time/sessions/
 ## Cutting a release
 
 ```sh
-git tag v0.2.0-rc.1
-git push origin v0.2.0-rc.1
+git tag v0.2.0-rc.2
+git push origin v0.2.0-rc.2
 ```
 
 The release workflow handles the rest: cross-platform binaries (macOS
@@ -233,9 +233,9 @@ pre-release with `gh release edit <tag> --prerelease` so users see the
 status flag. crates.io respects semver pre-release identifiers — bare
 `cargo install claude-time` keeps users on the latest stable.
 
-## Follow-ups (not in v0.2.0-rc.1)
+## Follow-ups (not in v0.2.0-rc.2)
 
-- **Validate v0.2.0-rc.1 in live sessions** — open real Claude Code
+- **Validate v0.2.0-rc.2 in live sessions** — open real Claude Code
   sessions and confirm `~/.claude/claude-time/sessions/*.json` populates
   with non-empty `active_skills`, `claude_md_files`, `active_hook_events`.
   Until that's done, the "experimental" disclaimer stays.
@@ -261,9 +261,9 @@ status flag. crates.io respects semver pre-release identifiers — bare
 If you're a fresh Claude Code session opened here:
 
 1. You just read this file.
-2. `cargo test` to confirm 101 tests still pass.
+2. `cargo test` to confirm 107 tests still pass.
 3. Check the open follow-ups list above. Most-likely next moves:
-   validate v0.2.0-rc.1 in a live Claude Code session (open the app,
+   validate v0.2.0-rc.2 in a live Claude Code session (open the app,
    work normally, then `claude-time report --serve` and confirm the
    Drivers section shows non-empty groups with the right environment
    features). After that, decide whether to promote to v0.2.0 stable or

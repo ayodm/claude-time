@@ -51,6 +51,88 @@ pub fn ensure_dirs() -> Result<()> {
 }
 
 /// Path to one session's record file.
+///
+/// Rejects session IDs that would be unsafe as filenames — anything outside
+/// `[A-Za-z0-9_-]`, or longer than 64 chars. Real Claude Code session IDs
+/// are UUIDv4 (36 chars, hex+dashes) and pass cleanly; this is purely
+/// defensive against hand-crafted or malformed payloads that could otherwise
+/// write outside the sessions dir (e.g. `../escape`) or trigger OS errors
+/// (e.g. `a/b`).
 pub fn session_file(session_id: &str) -> Result<PathBuf> {
+    validate_session_id(session_id)?;
     Ok(sessions_dir()?.join(format!("{session_id}.json")))
+}
+
+fn validate_session_id(session_id: &str) -> Result<()> {
+    if session_id.is_empty() {
+        anyhow::bail!("session_id is empty");
+    }
+    if session_id.len() > 64 {
+        anyhow::bail!("session_id too long ({} chars, max 64)", session_id.len());
+    }
+    if !session_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        anyhow::bail!("session_id contains unsafe characters (only [A-Za-z0-9_-] allowed)");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uuid_v4_passes() {
+        // Real Claude Code session IDs.
+        assert!(validate_session_id("b48618ce-190f-4777-98fb-f6986d0c1712").is_ok());
+        assert!(validate_session_id("ABCD-1234").is_ok());
+        assert!(validate_session_id("under_score").is_ok());
+    }
+
+    #[test]
+    fn rejects_path_traversal() {
+        assert!(validate_session_id("../escape").is_err());
+        assert!(validate_session_id("..").is_err());
+        assert!(validate_session_id("a/b").is_err());
+        assert!(validate_session_id("a\\b").is_err());
+    }
+
+    #[test]
+    fn rejects_special_chars() {
+        for bad in [
+            " ",
+            "with space",
+            "with;semi",
+            "with\"quote",
+            "with$dollar",
+            "🦀",
+        ] {
+            assert!(
+                validate_session_id(bad).is_err(),
+                "expected reject: {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_too_long() {
+        let long = "x".repeat(65);
+        assert!(validate_session_id(&long).is_err());
+        let max = "x".repeat(64);
+        assert!(validate_session_id(&max).is_ok());
+    }
+
+    #[test]
+    fn rejects_empty() {
+        assert!(validate_session_id("").is_err());
+    }
+
+    #[test]
+    fn rejects_control_chars() {
+        assert!(validate_session_id("a\nb").is_err());
+        assert!(validate_session_id("a\0b").is_err());
+        assert!(validate_session_id("a\tb").is_err());
+    }
 }

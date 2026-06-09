@@ -13,16 +13,17 @@ A passive ROI tracker for Claude Code itself. Measures whether Claude is
 days = value; a diff that was reverted or rewritten = waste.
 
 - **Repo:** https://github.com/ayodm/claude-time (public)
-- **Latest:** v0.1.2 on `main`. Six commits, all author `Ayo M <ayodm@me.com>`.
+- **Latest:** v0.2.0-rc.1 pre-release on `main`. v0.1.2 remains the
+  stable on crates.io; `cargo install claude-time` keeps users on it.
 - **Stack:** Rust (single binary, no runtime deps for users)
 - **Distribution:** crates.io + GitHub Releases + Claude Code plugin marketplace + Homebrew tap (planned)
 - **License:** MIT
 - **Commit identity for this repo:** `Ayo M <ayodm@me.com>`. The gmail
   address must NOT appear in commits. Local git config is set; verify with
   `git config user.email`.
-- **Installed on this machine:** `~/.cargo/bin/claude-time` (v0.1.2) with
-  hooks active in `~/.claude/settings.json`. Backup of pre-install
-  settings at `~/.claude/settings.json.before-claude-time.bak`.
+- **Installed on this machine:** `~/.cargo/bin/claude-time` (v0.2.0-rc.1
+  built locally) with hooks active in `~/.claude/settings.json`. Backup
+  of pre-install settings at `~/.claude/settings.json.before-claude-time.bak`.
 
 ## What's shipped
 
@@ -56,6 +57,35 @@ days = value; a diff that was reverted or rewritten = waste.
 - **Output modes**: `report` defaults to HTML + browser open; `--stdout`
   pipes HTML; `--markdown` keeps the legacy terminal-readable path;
   `--serve` starts the server.
+
+### v0.2.0-rc.1 — driver capture + correlation
+
+Pre-release. Stable line stays on v0.1.2; this is opt-in via
+`cargo install claude-time --version 0.2.0-rc.1`. Plan source-of-truth at
+`docs/v0.2.0-plan.md`; per-phase commits:
+
+- **Phase 0** (`eed3cbf`) — surface cache hit ratio + sessions-by-model
+  in HTML/markdown totals and the `/session/{id}` HTMX fragment. New
+  `SessionRecord::cache_hit_ratio() -> Option<f64>`.
+- **Phase 1** (`b40cc55`) — new `src/env_capture.rs` snapshots
+  active skills (user / project / enabled-plugin sources), CLAUDE.md
+  file hashes (walked up to repo root, depth-cap 8), active hook
+  events (excluding our own `claude-time hook *`), and enabledPlugins
+  at SessionStart. Unknown payload keys collected into an `env_extras`
+  bag for forward compat. Content hashing via inline FNV-1a 64-bit
+  (no new dep).
+- **Phase 2** (`67e3173`) — new `src/correlate.rs`. `group_by_driver`
+  partitions sessions by skill / CLAUDE.md hash / hook event / model /
+  edit-pattern, computes per-group avg retention + cost, filters
+  `n < 3` as noise. Reports gain a "Drivers" section between
+  pinpoints and quadrant (HTML + markdown). HTMX endpoint
+  `GET /driver/{type}/{key}` returns a session-list fragment for
+  click-to-drill-in. Tool-call ordering captured into
+  `SessionRecord::tool_sequence` (cap 200) for the
+  Edit-without-prior-Read detector and future 3-gram mining.
+
+Phases 3 (`UserPromptSubmit` hook for prompt-shape) and 4 (cache
+buckets + tool-sequence 3-gram mining) are deferred — see plan.
 
 ### v0.1.2 — hook shape fix + legacy migration
 
@@ -99,12 +129,12 @@ Earlier v0.1.1 coverage (still present):
 
 ```
 .
-├── Cargo.toml                              # v0.1.2; metadata for crates.io
+├── Cargo.toml                              # v0.2.0-rc.1; metadata for crates.io
 ├── README.md                               # install routes + adoption section
 ├── LICENSE                                 # MIT
 ├── installer.sh                            # curl-shell installer
 ├── .claude-plugin/
-│   ├── plugin.json                         # plugin manifest (v0.1.2)
+│   ├── plugin.json                         # plugin manifest (v0.2.0-rc.1)
 │   └── marketplace.json                    # this repo IS its own marketplace
 ├── hooks/
 │   └── hooks.json                          # SessionStart + SessionEnd declarations
@@ -190,20 +220,33 @@ ls ~/.claude/claude-time/sessions/
 ## Cutting a release
 
 ```sh
-git tag v0.1.2
-git push origin v0.1.2
+git tag v0.2.0-rc.1
+git push origin v0.2.0-rc.1
 ```
 
 The release workflow handles the rest: cross-platform binaries (macOS
 aarch64+x86_64, Linux x86_64+aarch64) attached to the GitHub Release with
 sha256 sidecars, then `cargo publish` to crates.io (needs `CRATES_IO_TOKEN`
-secret on the repo — set it via `gh secret set CRATES_IO_TOKEN` first).
+secret on the repo). Pre-release tags (`v*-rc.*`, `v*-beta.*`) are still
+picked up by the workflow; after release, mark the GitHub Release as
+pre-release with `gh release edit <tag> --prerelease` so users see the
+status flag. crates.io respects semver pre-release identifiers — bare
+`cargo install claude-time` keeps users on the latest stable.
 
-## Follow-ups (not in v0.1.2)
+## Follow-ups (not in v0.2.0-rc.1)
 
+- **Validate v0.2.0-rc.1 in live sessions** — open real Claude Code
+  sessions and confirm `~/.claude/claude-time/sessions/*.json` populates
+  with non-empty `active_skills`, `claude_md_files`, `active_hook_events`.
+  Until that's done, the "experimental" disclaimer stays.
+- **Phase 3 — `UserPromptSubmit` hook** for prompt-shape capture (length,
+  has-code-block, question vs command). Higher risk: third hook event,
+  install migration impact, Claude Code payload key unverified. See plan.
+- **Phase 4 — cache buckets + tool-sequence 3-gram mining.** Builds on
+  Phase 2's correlation infrastructure.
 - **Homebrew tap** — separate repo `ayodm/homebrew-claude-time` with
-  formula pulling from GitHub Release. Do this after v0.1.2 is tagged so
-  the release URL exists.
+  formula pulling from GitHub Release. Do this after v0.2.0 stable is
+  tagged so the release URL stabilises.
 - **`claude-time inspect <session-id>`** — pretty-print one session.
 - **Optional baseline-estimation slider** — opt-in `UserPromptSubmit` hook
   + 1-tap TUI prompt. Only if pinpoints prove too noisy.
@@ -218,10 +261,13 @@ secret on the repo — set it via `gh secret set CRATES_IO_TOKEN` first).
 If you're a fresh Claude Code session opened here:
 
 1. You just read this file.
-2. `cargo test` to confirm 49 tests still pass.
+2. `cargo test` to confirm 101 tests still pass.
 3. Check the open follow-ups list above. Most-likely next moves:
-   either tag the v0.1.2 release, set up the Homebrew tap, or implement
-   `claude-time inspect`.
+   validate v0.2.0-rc.1 in a live Claude Code session (open the app,
+   work normally, then `claude-time report --serve` and confirm the
+   Drivers section shows non-empty groups with the right environment
+   features). After that, decide whether to promote to v0.2.0 stable or
+   start Phase 3.
 4. Commit per logical chunk with the `ayodm@me.com` identity.
 
 Welcome back.

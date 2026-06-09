@@ -1,9 +1,9 @@
 [package]
 name = "claude-time"
-version = "0.1.2"
+version = "0.2.0-rc.1"
 edition = "2021"
 license = "MIT"
-description = "Passive-only ROI tracker for Claude Code sessions. Substitutes diff retention for time-saved baseline. v0.1.2: experimental — hook migration not yet validated in a live session."
+description = "Passive-only ROI tracker for Claude Code sessions. Substitutes diff retention for time-saved baseline. v0.2.0-rc.1: pre-release — adds driver-correlation views; live-session validation pending."
 readme = "README.md"
 keywords = ["claude", "claude-code", "productivity", "telemetry"]
 categories = ["command-line-utilities", "development-tools"]

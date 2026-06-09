@@ -5,14 +5,19 @@
 [![crates.io downloads](https://img.shields.io/crates/d/claude-time.svg)](https://crates.io/crates/claude-time)
 [![license](https://img.shields.io/crates/l/claude-time.svg)](LICENSE)
 
-> **Heads up — v0.1.2 is experimental.** This release fixes the hook
-> registration shape that Claude Code's settings validator rejected in
-> v0.1.x (`/doctor` flagged `hooks.SessionEnd.0.hooks: Expected array`)
-> and migrates legacy entries on install. The migration logic is
-> covered by 49 tests, but it has **not yet been validated against a
-> live Claude Code session** firing the migrated hook. If `claude-time
-> status` reports `2 / 2` but `~/.claude/claude-time/sessions/` stays
-> empty across a few sessions, file an issue.
+> **v0.2.0-rc.1 is a pre-release.** Adds environment capture (which
+> skills, CLAUDE.md files, hooks, and plugins were active at
+> SessionStart) and a "Drivers" correlation view that groups sessions
+> by environment feature and shows retention/cost deltas vs the
+> all-sessions baseline. 113 tests cover the implementation, but
+> **the live behaviour has not been validated against a real Claude
+> Code session yet** — neither the v0.1.2 hook-shape migration nor the
+> new v0.2.0 driver capture. `cargo install claude-time` keeps you on
+> stable `0.1.2`; opt in to the pre-release explicitly:
+>
+> ```sh
+> cargo install claude-time --version 0.2.0-rc.1
+> ```
 
 Passive-only ROI tracker for Claude Code sessions.
 

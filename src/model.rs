@@ -175,6 +175,17 @@ impl SessionRecord {
             .unwrap_or(0.0);
         self.total_cost_usd + time_cost
     }
+
+    /// Fraction of input tokens served from cache. `None` when nothing was
+    /// processed (no tokens of any kind), so callers can distinguish "session
+    /// had no LLM activity" from "session ran cold."
+    pub fn cache_hit_ratio(&self) -> Option<f64> {
+        let denom = self.cache_read_tokens + self.cache_creation_tokens + self.input_tokens;
+        if denom == 0 {
+            return None;
+        }
+        Some(self.cache_read_tokens as f64 / denom as f64)
+    }
 }
 
 /// Outcome classification given cost + retention.
@@ -285,6 +296,46 @@ mod tests {
             classify(Some(RetentionOutcome::NonGit), 0.5),
             Quadrant::Unmeasurable
         );
+    }
+
+    #[test]
+    fn cache_hit_ratio_none_when_no_tokens() {
+        let s = SessionRecord::default();
+        assert_eq!(s.cache_hit_ratio(), None);
+    }
+
+    #[test]
+    fn cache_hit_ratio_all_cache_is_one() {
+        let mut s = SessionRecord::default();
+        s.cache_read_tokens = 1000;
+        // No input or cache_creation tokens — fully warm.
+        assert_eq!(s.cache_hit_ratio(), Some(1.0));
+    }
+
+    #[test]
+    fn cache_hit_ratio_no_cache_is_zero() {
+        let mut s = SessionRecord::default();
+        s.input_tokens = 500;
+        assert_eq!(s.cache_hit_ratio(), Some(0.0));
+    }
+
+    #[test]
+    fn cache_hit_ratio_mixed_inputs() {
+        let mut s = SessionRecord::default();
+        s.cache_read_tokens = 750;
+        s.cache_creation_tokens = 100;
+        s.input_tokens = 150;
+        // 750 / (750 + 100 + 150) = 750 / 1000 = 0.75
+        let r = s.cache_hit_ratio().unwrap();
+        assert!((r - 0.75).abs() < 1e-9, "got {r}");
+    }
+
+    #[test]
+    fn cache_creation_alone_does_not_count_as_hit() {
+        // Cache creation is the cost of warming — it's not a hit.
+        let mut s = SessionRecord::default();
+        s.cache_creation_tokens = 1000;
+        assert_eq!(s.cache_hit_ratio(), Some(0.0));
     }
 
     #[test]

@@ -88,19 +88,27 @@ fn session_fragment(cfg: &Config, session_id: &str) -> Result<String> {
     let hourly = cfg.report.hourly_rate_usd;
     let cost = session.total_cost(hourly);
 
+    let cache_ratio = session
+        .cache_hit_ratio()
+        .map(|r| format!("{:.0}%", r * 100.0))
+        .unwrap_or_else(|| "-".to_string());
+
     let mut body = String::new();
     body.push_str(&format!(
         r#"<div class="detail-grid">
   <div><span class="muted small">project</span><div>{project}</div></div>
+  <div><span class="muted small">model</span><div>{model}</div></div>
   <div><span class="muted small">cwd</span><div><code>{cwd}</code></div></div>
   <div><span class="muted small">duration</span><div>{dur}</div></div>
   <div><span class="muted small">Claude $</span><div>${claude_cost:.4}</div></div>
   <div><span class="muted small">total cost</span><div>${total_cost:.2}</div></div>
   <div><span class="muted small">turns</span><div>{turns}</div></div>
   <div><span class="muted small">tokens in/out</span><div>{in_tokens} / {out_tokens}</div></div>
+  <div><span class="muted small">cache hit</span><div>{cache_ratio}</div></div>
   <div><span class="muted small">lines + / -</span><div>{added} / {removed}</div></div>
 </div>"#,
         project = escape(session.project.as_deref().unwrap_or("-")),
+        model = escape(session.model.as_deref().unwrap_or("-")),
         cwd = escape(&session.cwd),
         dur = session
             .duration_minutes()

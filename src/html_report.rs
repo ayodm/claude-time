@@ -330,6 +330,43 @@ fn render_totals(scored: &[Scored]) -> String {
     } else {
         100.0 * surviving as f64 / total_added as f64
     };
+
+    // Window-aggregate cache hit ratio. Hidden when no LLM activity exists.
+    let cache_read: u64 = scored.iter().map(|s| s.session.cache_read_tokens).sum();
+    let cache_create: u64 = scored.iter().map(|s| s.session.cache_creation_tokens).sum();
+    let inputs: u64 = scored.iter().map(|s| s.session.input_tokens).sum();
+    let cache_denom = cache_read + cache_create + inputs;
+    let cache_row = if cache_denom == 0 {
+        String::new()
+    } else {
+        let pct = 100.0 * cache_read as f64 / cache_denom as f64;
+        format!(
+            r#"    <tr><th>Cache hit ratio</th><td>{pct:.0}% <span class="muted">({cache_read} read / {cache_denom} total)</span></td></tr>
+"#
+        )
+    };
+
+    // Sessions by model — hidden when no session has model set.
+    let mut by_model: BTreeMap<&str, u32> = Default::default();
+    for s in scored {
+        if let Some(m) = s.session.model.as_deref() {
+            *by_model.entry(m).or_default() += 1;
+        }
+    }
+    let model_row = if by_model.is_empty() {
+        String::new()
+    } else {
+        let parts: Vec<String> = by_model
+            .iter()
+            .map(|(m, n)| format!("{}: {}", escape(m), n))
+            .collect();
+        format!(
+            r#"    <tr><th>Sessions by model</th><td>{}</td></tr>
+"#,
+            parts.join(", ")
+        )
+    };
+
     format!(
         r#"<section class="card">
   <h2>Totals</h2>
@@ -341,7 +378,7 @@ fn render_totals(scored: &[Scored]) -> String {
     <tr><th>Lines added</th><td>{total_added}</td></tr>
     <tr><th>Lines removed</th><td>{total_removed}</td></tr>
     <tr><th>Lines surviving in HEAD</th><td>{surviving} ({retention_pct:.0}%)</td></tr>
-  </table>
+{cache_row}{model_row}  </table>
 </section>"#
     )
 }

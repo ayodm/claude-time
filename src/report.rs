@@ -198,6 +198,34 @@ fn render_totals(scored: &[Scored]) -> String {
         100.0 * surviving as f64 / total_added as f64
     };
 
+    // Aggregate cache hit ratio = sum(cache_read) / sum(cache_read + cache_creation + input)
+    // across the window. Skipped entirely when no LLM activity was recorded.
+    let cache_read: u64 = scored.iter().map(|s| s.session.cache_read_tokens).sum();
+    let cache_create: u64 = scored.iter().map(|s| s.session.cache_creation_tokens).sum();
+    let inputs: u64 = scored.iter().map(|s| s.session.input_tokens).sum();
+    let cache_denom = cache_read + cache_create + inputs;
+    let cache_row = if cache_denom == 0 {
+        String::new()
+    } else {
+        let pct = 100.0 * cache_read as f64 / cache_denom as f64;
+        format!("| Cache hit ratio | {pct:.0}% ({cache_read} read / {cache_denom} total input) |\n")
+    };
+
+    // "Sessions by model" — only rendered if at least one session has a
+    // model name recorded.
+    let mut by_model: std::collections::BTreeMap<&str, u32> = Default::default();
+    for s in scored {
+        if let Some(m) = s.session.model.as_deref() {
+            *by_model.entry(m).or_default() += 1;
+        }
+    }
+    let model_row = if by_model.is_empty() {
+        String::new()
+    } else {
+        let parts: Vec<String> = by_model.iter().map(|(m, n)| format!("{m}: {n}")).collect();
+        format!("| Sessions by model | {} |\n", parts.join(", "))
+    };
+
     indoc::formatdoc! {r#"
         ## Totals
 
@@ -210,7 +238,7 @@ fn render_totals(scored: &[Scored]) -> String {
         | Lines added | {total_added} |
         | Lines removed | {total_removed} |
         | Lines surviving in HEAD | {surviving} ({retention_pct:.0}%) |
-        "#,
+        {cache_row}{model_row}"#,
     }
 }
 

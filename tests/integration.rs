@@ -164,9 +164,30 @@ fn end_to_end_capture_and_report() {
     assert!(v["git_sha_after"].is_string());
     assert_eq!(v["lines_added"].as_u64().unwrap(), 3);
 
-    // Report includes the session's quadrant + project label.
+    // HTML report (default): writes to <data_dir>/last-report.html and
+    // tells the user the path. --no-open suppresses browser auto-open in CI.
     bin(config.path())
-        .args(["report", "--since", "1d"])
+        .args(["report", "--since", "1d", "--no-open"])
+        .assert()
+        .success()
+        .stdout(contains("last-report.html"));
+    let html_path = config.path().join("claude-time").join("last-report.html");
+    let html = std::fs::read_to_string(&html_path).unwrap();
+    assert!(html.contains("<!DOCTYPE html>"));
+    assert!(html.contains("Where time was wasted")); // pinpoint section
+    assert!(html.contains("Quadrant"));
+    assert!(html.contains("htmx.org"));
+
+    // --stdout pipes HTML directly (CI-friendly).
+    bin(config.path())
+        .args(["report", "--since", "1d", "--stdout"])
+        .assert()
+        .success()
+        .stdout(contains("<!DOCTYPE html>"));
+
+    // --markdown keeps the terminal-readable legacy path.
+    bin(config.path())
+        .args(["report", "--since", "1d", "--markdown"])
         .assert()
         .success()
         .stdout(contains("## Quadrant"))

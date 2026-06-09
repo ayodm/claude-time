@@ -27,7 +27,7 @@ pub fn run(since: &str, retention_window: Option<u32>, by: Option<&str>) -> Resu
 }
 
 /// Parse a window string like "7d", "30d", "24h" into a UTC cutoff.
-fn parse_since(s: &str) -> Result<DateTime<Utc>> {
+pub fn parse_since(s: &str) -> Result<DateTime<Utc>> {
     let s = s.trim();
     if s.is_empty() {
         anyhow::bail!("--since cannot be empty");
@@ -45,7 +45,7 @@ fn parse_since(s: &str) -> Result<DateTime<Utc>> {
     Ok(Utc::now() - dur)
 }
 
-fn load_sessions_since(cutoff: DateTime<Utc>) -> Result<Vec<SessionRecord>> {
+pub fn load_sessions_since(cutoff: DateTime<Utc>) -> Result<Vec<SessionRecord>> {
     let dir = crate::paths::sessions_dir()?;
     if !dir.exists() {
         return Ok(vec![]);

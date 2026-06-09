@@ -17,6 +17,9 @@ pub struct TranscriptStats {
     pub turn_count: u32,
     pub tool_calls: BTreeMap<String, u32>,
     pub files_modified: Vec<String>,
+    /// Per-file edit count across Edit / Write / MultiEdit / NotebookEdit
+    /// tool calls. High counts on a low-retention file = pinpoint waste.
+    pub per_file_edits: BTreeMap<String, u32>,
     pub total_cost_usd: f64,
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -105,6 +108,10 @@ fn ingest_entry(
                             .and_then(|p| p.as_str())
                         {
                             files_set.insert(path.to_string());
+                            *stats
+                                .per_file_edits
+                                .entry(path.to_string())
+                                .or_default() += 1;
                         }
                     }
                 }
@@ -214,6 +221,9 @@ mod tests {
         assert_eq!(stats.tool_calls.get("Bash").copied(), Some(1));
         assert_eq!(stats.tool_calls.get("Write").copied(), Some(1));
         assert_eq!(stats.files_modified, vec!["/a/b.rs", "/a/c.rs"]);
+        // Per-file edit count — /a/b.rs got 2 Edits, /a/c.rs got 1 Write.
+        assert_eq!(stats.per_file_edits.get("/a/b.rs").copied(), Some(2));
+        assert_eq!(stats.per_file_edits.get("/a/c.rs").copied(), Some(1));
     }
 
     #[test]

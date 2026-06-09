@@ -129,6 +129,7 @@ fn populate_session_end(record: &mut SessionRecord, _payload: &Value) {
             Ok(stats) => {
                 record.turn_count = stats.turn_count;
                 record.tool_calls = stats.tool_calls;
+                record.per_file_edits = stats.per_file_edits;
                 if record.files_modified.is_empty() {
                     record.files_modified = stats.files_modified;
                 }

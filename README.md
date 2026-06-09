@@ -29,6 +29,11 @@ Scored at report time:
 - **Retention** — what fraction of a session's diff still exists in HEAD
   after N days (default 7). Computed via `git blame` against the session's
   commit.
+- **Waste pinpoints** — for each session, which *specific files* absorbed
+  many edits but didn't survive in HEAD. Three severity tiers:
+  - `SEVERE` — 5+ edits, <10% retention. Look here first.
+  - `ITERATED` — 3+ edits, <50% retention. Prompt-refactor candidate.
+  - `LOST` — file written, nothing survived. Reverted or rewritten by hand.
 - **Quadrant** — each session classified as:
   - `QUICK WIN` — high retention, low cost
   - `DEEP VALUE` — high retention, high cost
@@ -94,10 +99,13 @@ claude-time status
 ## Use
 
 ```sh
-claude-time report                       # last 7 days, markdown to stdout
-claude-time report --since 30d
-claude-time report --by project
+claude-time report                       # writes HTML + opens browser
+claude-time report --since 30d           # window control
+claude-time report --by project          # group by project
 claude-time report --retention-window 14
+claude-time report --serve               # HTMX-driven local server
+claude-time report --stdout              # HTML to stdout (CI / piping)
+claude-time report --markdown            # legacy terminal-readable
 claude-time archive                      # compact old sessions on demand
 claude-time uninstall                    # remove hooks; keep data dir
 ```

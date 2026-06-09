@@ -17,7 +17,8 @@ use git2::{BlameOptions, DiffOptions, Oid, Repository};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::model::FileDiff;
+use crate::model::{FileDiff, WastePinpoint};
+use std::path::PathBuf;
 
 pub fn score(session: &SessionRecord) -> Result<RetentionOutcome> {
     let cwd = Path::new(&session.cwd);
@@ -115,6 +116,110 @@ fn blame_surviving_lines(
         }
     }
     Ok(count.min(capped_at))
+}
+
+/// Per-file retention rate. For each file in `session.file_diffs`, returns
+/// the fraction of the session's added lines whose final-touching commit is
+/// still `sha_after`. Empty map if the session can't be scored (non-git,
+/// rebased, no commit).
+pub fn score_per_file(session: &SessionRecord) -> Result<BTreeMap<String, f64>> {
+    let mut out = BTreeMap::new();
+    let cwd = Path::new(&session.cwd);
+    let repo = match Repository::discover(cwd) {
+        Ok(r) => r,
+        Err(_) => return Ok(out),
+    };
+    let sha_after = match &session.git_sha_after {
+        Some(s) => s,
+        None => return Ok(out),
+    };
+    if Some(sha_after) == session.git_sha_before.as_ref() {
+        return Ok(out);
+    }
+    let after_oid = match Oid::from_str(sha_after) {
+        Ok(o) => o,
+        Err(_) => return Ok(out),
+    };
+    let head_oid = match repo.head().and_then(|r| r.peel_to_commit()) {
+        Ok(c) => c.id(),
+        Err(_) => return Ok(out),
+    };
+    if head_oid != after_oid
+        && !repo
+            .graph_descendant_of(head_oid, after_oid)
+            .unwrap_or(false)
+    {
+        return Ok(out);
+    }
+
+    for (path, diff) in &session.file_diffs {
+        if diff.lines_added == 0 {
+            continue;
+        }
+        let surviving = blame_surviving_lines(&repo, path, after_oid, diff.lines_added)?;
+        let rate = surviving as f64 / diff.lines_added as f64;
+        out.insert(path.clone(), rate.clamp(0.0, 1.0));
+    }
+    Ok(out)
+}
+
+/// Walk (transcript edits ∪ git diff files) and surface ranked WastePinpoints.
+/// This is the pinpoint-waste signal the operator wants in the report.
+pub fn pinpoint_waste(session: &SessionRecord) -> Result<Vec<WastePinpoint>> {
+    let per_file_retention = score_per_file(session)?;
+    let workdir = repo_workdir(&session.cwd);
+
+    let edit_files: std::collections::BTreeSet<&String> = session
+        .per_file_edits
+        .keys()
+        .chain(session.file_diffs.keys())
+        .collect();
+
+    let mut out: Vec<WastePinpoint> = Vec::new();
+    for file in edit_files {
+        let edits = session.per_file_edits.get(file).copied().unwrap_or(0);
+        let lines_added = session
+            .file_diffs
+            .get(file)
+            .map(|d| d.lines_added)
+            .unwrap_or(0);
+        // Match the per-file retention key (which uses repo-relative paths
+        // from blame) against the file path the transcript gave us (which is
+        // usually absolute).
+        let normalized = normalize_path(&workdir, file);
+        let retention = per_file_retention
+            .get(&normalized)
+            .or_else(|| per_file_retention.get(file))
+            .copied()
+            .unwrap_or(1.0);
+        if let Some(p) = WastePinpoint::classify(
+            &session.session_id,
+            session.project.as_deref(),
+            file,
+            edits,
+            lines_added,
+            retention,
+        ) {
+            out.push(p);
+        }
+    }
+    out.sort_by(|a, b| b.waste_score().partial_cmp(&a.waste_score()).unwrap());
+    Ok(out)
+}
+
+fn repo_workdir(cwd: &str) -> Option<PathBuf> {
+    Repository::discover(cwd)
+        .ok()
+        .and_then(|r| r.workdir().map(|p| p.to_path_buf()))
+}
+
+fn normalize_path(root: &Option<PathBuf>, file: &str) -> String {
+    if let Some(r) = root {
+        if let Ok(stripped) = Path::new(file).strip_prefix(r) {
+            return stripped.to_string_lossy().to_string();
+        }
+    }
+    file.to_string()
 }
 
 /// Capture per-file diff sizes between two commits. Used by the SessionEnd hook

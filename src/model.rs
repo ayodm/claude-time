@@ -51,6 +51,11 @@ pub struct SessionRecord {
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub cache_creation_tokens: u64,
 
+    /// Per-file edit count from the transcript (Edit/Write/MultiEdit/NotebookEdit).
+    /// Combined with per-file retention this is the pinpoint-waste signal.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub per_file_edits: BTreeMap<String, u32>,
+
     // Populated from git diff at SessionEnd.
     #[serde(default, skip_serializing_if = "is_zero_u32")]
     pub lines_added: u32,
@@ -78,6 +83,80 @@ pub struct FileDiff {
     pub lines_added: u32,
     #[serde(default, skip_serializing_if = "is_zero_u32")]
     pub lines_removed: u32,
+}
+
+/// A concrete waste-pinpoint surface: one file in one session that absorbed
+/// edits but whose changes didn't survive. The report ranks these so the
+/// operator sees *what* went wrong, not just *that* something did.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WastePinpoint {
+    pub session_id: String,
+    pub project: Option<String>,
+    pub file: String,
+    pub edits: u32,
+    pub lines_added: u32,
+    pub retention: f64,
+    pub severity: PinpointSeverity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PinpointSeverity {
+    /// 5+ edits, retention near zero — operator should look here first.
+    Severe,
+    /// 3+ edits with <50% retention — visible churn that didn't stick.
+    Iterated,
+    /// 1-2 edits and total retention loss — small surface, full loss.
+    Lost,
+}
+
+impl PinpointSeverity {
+    pub fn label(self) -> &'static str {
+        match self {
+            PinpointSeverity::Severe => "SEVERE",
+            PinpointSeverity::Iterated => "ITERATED",
+            PinpointSeverity::Lost => "LOST",
+        }
+    }
+}
+
+impl WastePinpoint {
+    pub fn classify(
+        session_id: &str,
+        project: Option<&str>,
+        file: &str,
+        edits: u32,
+        lines_added: u32,
+        retention: f64,
+    ) -> Option<Self> {
+        let severity = if edits >= 5 && retention < 0.10 {
+            PinpointSeverity::Severe
+        } else if edits >= 3 && retention < 0.50 {
+            PinpointSeverity::Iterated
+        } else if edits >= 1 && lines_added > 0 && retention < 0.10 {
+            PinpointSeverity::Lost
+        } else {
+            return None;
+        };
+        Some(Self {
+            session_id: session_id.to_string(),
+            project: project.map(|s| s.to_string()),
+            file: file.to_string(),
+            edits,
+            lines_added,
+            retention,
+            severity,
+        })
+    }
+
+    /// Higher = worse. Used to rank pinpoints across a window.
+    pub fn waste_score(&self) -> f64 {
+        let base = (1.0 - self.retention) * (self.edits.max(1) as f64);
+        match self.severity {
+            PinpointSeverity::Severe => base * 2.0,
+            PinpointSeverity::Iterated => base * 1.5,
+            PinpointSeverity::Lost => base,
+        }
+    }
 }
 
 impl SessionRecord {
@@ -206,5 +285,36 @@ mod tests {
             classify(Some(RetentionOutcome::NonGit), 0.5),
             Quadrant::Unmeasurable
         );
+    }
+
+    #[test]
+    fn pinpoint_classify_severe() {
+        let p = WastePinpoint::classify("s", None, "src/x.rs", 6, 50, 0.05).unwrap();
+        assert_eq!(p.severity, PinpointSeverity::Severe);
+    }
+
+    #[test]
+    fn pinpoint_classify_iterated() {
+        let p = WastePinpoint::classify("s", None, "src/x.rs", 4, 30, 0.30).unwrap();
+        assert_eq!(p.severity, PinpointSeverity::Iterated);
+    }
+
+    #[test]
+    fn pinpoint_classify_lost() {
+        let p = WastePinpoint::classify("s", None, "src/x.rs", 1, 10, 0.0).unwrap();
+        assert_eq!(p.severity, PinpointSeverity::Lost);
+    }
+
+    #[test]
+    fn pinpoint_none_for_high_retention() {
+        // Lots of edits but they all stuck — not waste.
+        assert!(WastePinpoint::classify("s", None, "src/x.rs", 10, 100, 0.95).is_none());
+    }
+
+    #[test]
+    fn pinpoint_severe_outranks_lost() {
+        let severe = WastePinpoint::classify("s", None, "x", 6, 50, 0.05).unwrap();
+        let lost = WastePinpoint::classify("s", None, "y", 1, 10, 0.0).unwrap();
+        assert!(severe.waste_score() > lost.waste_score());
     }
 }

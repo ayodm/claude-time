@@ -13,14 +13,14 @@ A passive ROI tracker for Claude Code itself. Measures whether Claude is
 days = value; a diff that was reverted or rewritten = waste.
 
 - **Repo:** https://github.com/ayodm/claude-time (public)
-- **Latest:** v0.1.1 on `main`. Five commits, all author `Ayo M <ayodm@me.com>`.
+- **Latest:** v0.1.2 on `main`. Six commits, all author `Ayo M <ayodm@me.com>`.
 - **Stack:** Rust (single binary, no runtime deps for users)
 - **Distribution:** crates.io + GitHub Releases + Claude Code plugin marketplace + Homebrew tap (planned)
 - **License:** MIT
 - **Commit identity for this repo:** `Ayo M <ayodm@me.com>`. The gmail
   address must NOT appear in commits. Local git config is set; verify with
   `git config user.email`.
-- **Installed on this machine:** `~/.cargo/bin/claude-time` (v0.1.1) with
+- **Installed on this machine:** `~/.cargo/bin/claude-time` (v0.1.2) with
   hooks active in `~/.claude/settings.json`. Backup of pre-install
   settings at `~/.claude/settings.json.before-claude-time.bak`.
 
@@ -57,9 +57,38 @@ days = value; a diff that was reverted or rewritten = waste.
   pipes HTML; `--markdown` keeps the legacy terminal-readable path;
   `--serve` starts the server.
 
+### v0.1.2 — hook shape fix + legacy migration
+
+- **Hook entries now wrapped correctly.** v0.1.x wrote
+  `{type, command}` directly under `hooks.SessionStart`/`SessionEnd`,
+  which Claude Code's settings validator now rejects (`/doctor` flags
+  `Expected array, but received undefined`) and which also rendered
+  the hooks silently inert. v0.1.2 writes the wrapped shape
+  `{hooks: [{type, command}]}` Claude Code expects
+  (`src/install.rs::wrapped_entry`).
+- **Self-healing install.** Running `claude-time install` against a
+  settings.json with legacy flat entries rewrites them in place. No
+  duplicates, even from half-migrated states or accidental flat dups
+  — `apply_hooks` collapses every configuration toward "exactly one
+  wrapped entry per event".
+- **Two-shape uninstall.** Accepts both flat and wrapped entries so
+  users on either version remove cleanly.
+- **Plugin manifest** (`hooks/hooks.json`) updated to wrapped shape so
+  the plugin install path is correct out of the box.
+
 ### Test coverage
 
-36 lib tests + 4 integration tests pass. New coverage in v0.1.1:
+44 lib tests + 5 integration tests pass. New coverage in v0.1.2
+(`src/install.rs::tests`, `tests/integration.rs`):
+- Shape assertion on emitted entries
+- Migration of legacy flat → wrapped, preserving siblings
+- Dedupe of half-migrated and duplicate-flat states
+- Uninstall removes wrapped, flat, and mixed-shape entries
+- `count_our_hooks` recognises both shapes
+- End-to-end integration test: seed settings.json with legacy shape,
+  run `claude-time install`, assert wrapped output
+
+Earlier v0.1.1 coverage (still present):
 - `per_file_edits` extraction from transcripts
 - `WastePinpoint::classify` across all 3 severities + ranking
 - HTML render smoke tests (sections present, escaping correct)
@@ -70,12 +99,12 @@ days = value; a diff that was reverted or rewritten = waste.
 
 ```
 .
-├── Cargo.toml                              # v0.1.1; metadata for crates.io
+├── Cargo.toml                              # v0.1.2; metadata for crates.io
 ├── README.md                               # install routes + adoption section
 ├── LICENSE                                 # MIT
 ├── installer.sh                            # curl-shell installer
 ├── .claude-plugin/
-│   ├── plugin.json                         # plugin manifest (v0.1.1)
+│   ├── plugin.json                         # plugin manifest (v0.1.2)
 │   └── marketplace.json                    # this repo IS its own marketplace
 ├── hooks/
 │   └── hooks.json                          # SessionStart + SessionEnd declarations
@@ -137,7 +166,7 @@ days = value; a diff that was reverted or rewritten = waste.
 ## Running things locally
 
 ```sh
-# Test everything (40 tests total)
+# Test everything (49 tests total: 44 lib + 5 integration)
 cargo test
 
 # Reinstall after changes
@@ -161,8 +190,8 @@ ls ~/.claude/claude-time/sessions/
 ## Cutting a release
 
 ```sh
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 The release workflow handles the rest: cross-platform binaries (macOS
@@ -170,10 +199,10 @@ aarch64+x86_64, Linux x86_64+aarch64) attached to the GitHub Release with
 sha256 sidecars, then `cargo publish` to crates.io (needs `CRATES_IO_TOKEN`
 secret on the repo — set it via `gh secret set CRATES_IO_TOKEN` first).
 
-## Follow-ups (not in v0.1.1)
+## Follow-ups (not in v0.1.2)
 
 - **Homebrew tap** — separate repo `ayodm/homebrew-claude-time` with
-  formula pulling from GitHub Release. Do this after v0.1.1 is tagged so
+  formula pulling from GitHub Release. Do this after v0.1.2 is tagged so
   the release URL exists.
 - **`claude-time inspect <session-id>`** — pretty-print one session.
 - **Optional baseline-estimation slider** — opt-in `UserPromptSubmit` hook
@@ -189,9 +218,9 @@ secret on the repo — set it via `gh secret set CRATES_IO_TOKEN` first).
 If you're a fresh Claude Code session opened here:
 
 1. You just read this file.
-2. `cargo test` to confirm 40 tests still pass.
+2. `cargo test` to confirm 49 tests still pass.
 3. Check the open follow-ups list above. Most-likely next moves:
-   either tag the release, set up the Homebrew tap, or implement
+   either tag the v0.1.2 release, set up the Homebrew tap, or implement
    `claude-time inspect`.
 4. Commit per logical chunk with the `ayodm@me.com` identity.
 

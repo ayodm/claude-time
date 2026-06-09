@@ -1,6 +1,6 @@
 [package]
 name = "claude-time"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MIT"
 description = "Passive-only ROI tracker for Claude Code sessions. Substitutes diff retention for time-saved baseline."

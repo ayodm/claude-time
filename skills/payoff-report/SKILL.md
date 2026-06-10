@@ -5,9 +5,6 @@ description: Use when the user asks "did my AI session pay off?", "show my payof
 
 # payoff-report
 
-`payoff` was previously published as `claude-time` — the migration is
-handled automatically on first install (data dir + hook entries migrate).
-
 ## When this skill fires
 
 The user is asking about ROI on their AI Code session. Likely phrasings:

@@ -5,14 +5,6 @@
 [![crates.io downloads](https://img.shields.io/crates/d/payoff.svg)](https://crates.io/crates/payoff)
 [![license](https://img.shields.io/crates/l/payoff.svg)](LICENSE)
 
-> **Renamed from `claude-time`.** Same project, new name — `payoff` says
-> what it does. `claude-time` v0.1.x and v0.2.0-rc.x stay on crates.io
-> as tombstones; new releases ship as `payoff`. Upgraders:
-> `payoff install` detects any legacy `claude-time hook *` entries in
-> your `~/.claude/settings.json` and rewrites them in place; the
-> `~/.claude/claude-time/` data dir gets moved to `~/.claude/payoff/`
-> on first run. Your session history is preserved.
->
 > ```sh
 > cargo install payoff
 > ```

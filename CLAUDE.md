@@ -24,7 +24,7 @@ days = value; a diff that was reverted or rewritten = waste.
   `git config user.email`.
 - **Installed on this machine:** `~/.cargo/bin/payoff` (v0.2.0
   built locally) with hooks active in `~/.claude/settings.json`. Backup
-  of pre-install settings at `~/.claude/settings.json.before-claude-time.bak`.
+  of pre-install settings at `~/.claude/settings.json.before-payoff.bak`.
 
 ## What's shipped
 

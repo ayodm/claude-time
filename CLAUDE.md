@@ -13,9 +13,9 @@ A passive ROI tracker for Claude Code itself. Measures whether Claude is
 days = value; a diff that was reverted or rewritten = waste.
 
 - **Repo:** https://github.com/ayodm/payoff (public)
-- **Latest:** v0.2.0 on `main`. Renamed from `claude-time` —
-  same code, new crate. `claude-time` v0.1.x and v0.2.0-rc.x stay on
-  crates.io as tombstones (yanked); new releases go out as `payoff`.
+- **Latest:** v0.2.0 on `main`. The crate's earlier v0.1.x and
+  v0.2.0-rc.x lines stay on crates.io as tombstones (yanked); new
+  releases go out as `payoff`.
 - **Stack:** Rust (single binary, no runtime deps for users)
 - **Distribution:** crates.io + GitHub Releases + Claude Code plugin marketplace + Homebrew tap (planned)
 - **License:** MIT
@@ -59,10 +59,10 @@ days = value; a diff that was reverted or rewritten = waste.
   pipes HTML; `--markdown` keeps the legacy terminal-readable path;
   `--serve` starts the server.
 
-### v0.2.0 — renamed from claude-time + driver capture + correlation
+### v0.2.0 — driver capture + correlation
 
 Pre-release. Stable line stays on v0.1.2; this is opt-in via
-`cargo install payoff` (renamed from claude-time). Plan source-of-truth at
+`cargo install payoff`. Plan source-of-truth at
 `docs/v0.2.0-plan.md`; per-phase commits:
 
 - **Phase 0** (`eed3cbf`) — surface cache hit ratio + sessions-by-model

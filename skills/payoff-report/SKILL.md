@@ -1,17 +1,19 @@
 ---
 name: payoff-report
-description: Use when the user asks "did my AI session pay off?", "show my payoff report", "where am I wasting time?", or wants to interpret a payoff HTML report. Runs `payoff report` with the right flags, opens the HTML in their browser, then explains the waste pinpoints + quadrant in plain English.
+description: Use when the user asks "did my AI session pay off?", "show my payoff report", "what's my retention rate?", or wants to interpret a payoff HTML report. Runs `payoff report` with the right flags, opens the HTML, and explains the pinpoints + drivers + quadrant in plain English. For fixing wasted time use payoff-waste-triage; for install/config issues use payoff-setup.
 ---
 
 # payoff-report
 
-## When this skill fires
+Runs and **interprets** the report. Two siblings handle the rest:
 
-The user is asking about ROI on their AI Code session. Likely phrasings:
+- Want to *fix* wasted time, not just read it? → **payoff-waste-triage**
+- Install / "not capturing" / config / hourly rate? → **payoff-setup**
+
+## When this skill fires
 
 - "did this session pay off?"
 - "show my payoff report"
-- "where am I wasting time?"
 - "what's my retention rate?"
 - "explain this report"
 
@@ -31,93 +33,62 @@ payoff report --since 30d --by project   # monthly, per-project
 payoff report --serve --port 7878        # live HTMX-driven server
 payoff report --stdout                   # HTML to stdout (CI / piping)
 payoff report --markdown                 # legacy markdown for terminal
-payoff status                            # is the tracker installed?
 ```
 
-If `payoff` is not on PATH, suggest:
-`cargo install payoff` or
-`/plugin marketplace add ayodm/payoff` then
-`/plugin install payoff@payoff`
-(see https://github.com/ayodm/payoff#install).
+If `payoff` is not on PATH or hooks aren't installed, hand off to
+**payoff-setup**.
 
 ## How to explain the report
 
-The HTML report leads with **"Where time was wasted"** — that's the answer
-to the most common question. Walk the user through the top 3 pinpoints:
+It has four parts, in priority order:
 
-- **SEVERE** badge — 5+ edits on a single file with <10% retention. Highest
-  priority. "Look here first."
-- **ITERATED** badge — 3+ edits, <50% retention. Visible churn that didn't
-  stick. Often a prompt-refactor candidate.
-- **LOST** badge — single edit, full retention loss. File was written, then
-  reverted or rewritten by hand.
+**1. "Where time was wasted"** (leads the report) — the answer to the most
+common question. Walk the top 3 pinpoints:
 
-Each pinpoint shows the explanation column ("Why") in plain English — read
-that to the user.
+- **SEVERE** — 5+ edits, <10% retention. "Look here first."
+- **ITERATED** — 3+ edits, <50% retention. Churn that didn't stick.
+- **LOST** — single edit, full loss. Written, then reverted by hand.
 
-Then the **Drivers** section groups sessions by environment feature (which
-skills were active, which CLAUDE.md hash, which model, edit pattern) and
-shows retention/cost deltas vs the all-sessions baseline. Use this to
-answer "did changing X help?" — but flag that it's correlation, not
-causation.
+Each pinpoint has a plain-English "Why" column — read it to the user. If they
+want to *act* on these rather than just understand them, switch to
+**payoff-waste-triage**.
 
-Then the **Quadrant** block summarizes whole sessions:
+**2. Drivers** — groups sessions by environment feature (active skills,
+CLAUDE.md hash, model, edit pattern) with retention/cost deltas vs the
+all-sessions baseline. Answers "did changing X help?" — always flag it as
+correlation, not causation.
+
+**3. Quadrant** — whole-session summary:
 
 | Quadrant | Meaning |
 |---|---|
 | **QUICK WIN** | Short session, diff still in HEAD. Cheap value. |
 | **DEEP VALUE** | Long session, diff still in HEAD. Earned its cost. |
-| **CHEAP WASTE** | Short session, diff reverted/rewritten. Cheap but unproductive. |
+| **CHEAP WASTE** | Short session, diff reverted. Cheap but unproductive. |
 | **EXPENSIVE WASTE** | Long session, diff gone. The signal worth examining. |
 
-Plus three non-scored outcomes:
+Plus three non-scored outcomes: **PENDING** (window not yet elapsed),
+**REBASED** (commit squashed/rebased away), **UNMEASURABLE** (ran outside git).
 
-- **PENDING** — session not yet old enough; retention window hasn't elapsed
-- **REBASED** — session's commit was squashed/rebased away; signal lost
-- **UNMEASURABLE** — session ran outside a git repo
+**4. Totals** — token spend, dollar cost, cache hit ratio, sessions by model.
 
 ## Server mode (`--serve`)
 
-If the user wants to *explore* rather than just read, start the server:
+If the user wants to *explore* rather than read:
 
 ```sh
 payoff report --serve
 ```
 
-This opens an HTMX-driven page where clicking a session row expands to show
-per-file pinpoints, tool-call mix, exact tokens, full cwd. Clicking a
-driver row drills into the sessions in that group. Useful for debugging a
-specific bad session.
+HTMX page: click a session row to expand per-file pinpoints, tool-call mix,
+tokens, cwd; click a driver row to drill into that group's sessions.
 
 ## What the report does NOT measure
 
-Always remind the user — the footer says it, but it's important:
+Remind the user (the footer says it too):
 
 - No absolute "time saved" claim (no baseline)
-- No code quality measure beyond retention
-- No subjective satisfaction
-- No learning value (a session that taught something has long-tail value
-  retention can't see)
-- Correlations in the Drivers section are not causation — pin a CLAUDE.md
-  hash and toggle one feature to compare cleanly.
-
-## Common follow-ups
-
-- **"What can I do about EXPENSIVE WASTE sessions?"** Look at the session
-  IDs at the top of the pinpoint table, find the transcripts at
-  `~/.claude/projects/<project>/<session-id>.jsonl`, read the prompts that
-  produced the wasted file. The pattern almost always rhymes across
-  sessions — there's a particular kind of task that Claude isn't nailing
-  for you, and tightening the prompt is usually the fix.
-- **"My retention is low — is Claude bad?"** Could be: aggressive squash
-  workflow (high REBASED count signals this), exploratory work that
-  legitimately iterates, or genuine quality issues. Run
-  `payoff report --by project` to isolate which projects are dragging
-  the number down.
-- **"How do I add my hourly rate?"** Edit `~/.claude/payoff/config.toml`,
-  set `[report] hourly_rate_usd = <rate>`. The cost column will then include
-  your time.
-- **"Where do the session transcripts live?"**
-  `~/.claude/projects/<project>/<session-id>.jsonl`. Claude Code's default
-  retention is 30 days; configure via `cleanupPeriodDays` in your
-  `~/.claude/settings.json`.
+- No code quality beyond retention
+- No subjective satisfaction or learning value
+- Drivers are correlation, not causation — pin a CLAUDE.md hash and toggle
+  one feature to compare cleanly

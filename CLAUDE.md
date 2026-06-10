@@ -139,8 +139,10 @@ Earlier v0.1.1 coverage (still present):
 │   └── marketplace.json                    # this repo IS its own marketplace
 ├── hooks/
 │   └── hooks.json                          # SessionStart + SessionEnd declarations
-├── skills/
-│   └── payoff-report/SKILL.md         # explains the HTML report on demand
+├── skills/                            # plugin-bundled, auto-discovered
+│   ├── payoff-report/SKILL.md         # run + interpret the HTML report
+│   ├── payoff-waste-triage/SKILL.md   # diagnose + fix wasted edits (agentic)
+│   └── payoff-setup/SKILL.md          # install / config / troubleshoot
 ├── src/
 │   ├── main.rs                             # bin entry → cli::run
 │   ├── lib.rs                              # module exports
